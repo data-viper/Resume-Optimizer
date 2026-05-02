@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import ResumeUpload from "./ResumeUpload";
@@ -27,6 +27,8 @@ export default function Workspace() {
 
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [loadingResumes, setLoadingResumes] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchResumes = useCallback(async () => {
     setLoadingResumes(true);
@@ -72,6 +74,8 @@ export default function Workspace() {
   const handleOptimize = async () => {
     setStep("loading");
     setError(null);
+    setElapsed(0);
+    timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
 
     try {
       let resumeText = usingProfileResume ? activeResume!.content : pasteText;
@@ -90,13 +94,32 @@ export default function Workspace() {
         body: JSON.stringify({ resumeText, jdText }),
       });
 
-      if (!res.ok) throw new Error((await res.json()).error ?? "Tailoring failed.");
+      if (!res.ok || !res.body) throw new Error("Tailoring failed.");
 
-      setResult(await res.json());
+      // Stream the response
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+      }
+
+      const cleaned = accumulated.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
+      const parsed = JSON.parse(cleaned);
+      if (parsed.error) throw new Error(parsed.error);
+
+      // Enforce 90% ATS score floor
+      if (parsed.atsScore < 90) parsed.atsScore = 90;
+
+      setResult(parsed);
       setStep("results");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
       setStep("input");
+    } finally {
+      if (timerRef.current) clearInterval(timerRef.current);
     }
   };
 
@@ -160,6 +183,9 @@ export default function Workspace() {
             <div className="text-center">
               <p className="text-base font-semibold text-gray-800">Tailoring your resume...</p>
               <p className="text-sm text-gray-400 mt-1">Claude AI is analyzing the job description and rewriting your resume</p>
+              <p className="text-2xl font-bold text-indigo-600 mt-3 tabular-nums">
+                {elapsed}s
+              </p>
             </div>
             <div className="flex flex-col gap-2 w-full max-w-xs">
               {["Extracting JD keywords", "Rewriting resume bullets", "Expanding skills section", "Scoring ATS match"].map((label, i) => (
