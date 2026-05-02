@@ -22,7 +22,7 @@ CONSTRAINTS
 - Plain text only — no tables, columns, or special characters
 
 OUTPUT — return ONLY valid JSON, no markdown fences:
-{"tailored":"complete tailored resume as plain text","atsScore":<0-100>,"matchedKeywords":["..."],"missingKeywords":["..."],"improvements":["..."]}`;
+{"tailored":"complete tailored resume as plain text","atsScore":<0-100>,"jobTitle":"extracted job title from JD","company":"extracted company name from JD","matchedKeywords":["..."],"missingKeywords":["..."],"improvements":["..."]}`;
 
 export async function POST(req: NextRequest) {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });

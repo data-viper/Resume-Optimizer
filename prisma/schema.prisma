@@ -8,13 +8,25 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(cuid())
-  email     String    @unique
-  name      String?
-  password  String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  resumes   Resume[]
+  id           String           @id @default(cuid())
+  email        String           @unique
+  name         String?
+  password     String
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  resumes      Resume[]
+  applications JobApplication[]
+}
+
+model JobApplication {
+  id         String   @id @default(cuid())
+  userId     String
+  jobTitle   String
+  company    String
+  atsScore   Int
+  resumeName String?
+  appliedAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Resume {

@@ -113,6 +113,20 @@ export default function Workspace() {
       // Enforce 90% ATS score floor
       if (parsed.atsScore < 90) parsed.atsScore = 90;
 
+      // Auto-log the job application
+      if (isLoggedIn && parsed.jobTitle && parsed.company) {
+        fetch("/api/profile/applications", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jobTitle: parsed.jobTitle,
+            company: parsed.company,
+            atsScore: parsed.atsScore,
+            resumeName: activeResume?.name ?? null,
+          }),
+        }).catch(() => {});
+      }
+
       setResult(parsed);
       setStep("results");
     } catch (err) {
