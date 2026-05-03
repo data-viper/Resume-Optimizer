@@ -219,7 +219,11 @@ export default function Workspace() {
               <h1 className="text-xl font-bold text-gray-900">Your optimized resume is ready</h1>
               <p className="text-sm text-gray-500 mt-0.5">Review the tailored resume, download as PDF, or copy to paste into your template.</p>
             </div>
-            <Results result={result} onBack={() => setStep("input")} />
+            <Results
+              result={result}
+              onBack={() => setStep("input")}
+              onHome={() => { setStep("input"); setResult(null); setJdText(""); }}
+            />
           </>
         )}
 
