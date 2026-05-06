@@ -110,9 +110,6 @@ export default function Workspace() {
       const parsed = JSON.parse(cleaned);
       if (parsed.error) throw new Error(parsed.error);
 
-      // Enforce 90% ATS score floor
-      if (parsed.atsScore < 90) parsed.atsScore = 90;
-
       // Auto-log the job application
       if (isLoggedIn && parsed.jobTitle && parsed.company) {
         fetch("/api/profile/applications", {

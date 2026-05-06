@@ -13,6 +13,7 @@ function parseLines(text: string): ParsedLine[] {
   const raw = text.split("\n");
   const result: ParsedLine[] = [];
   let nameWritten = false;
+  let pastFirstHeader = false; // once true, | lines can't be contact lines
 
   for (let i = 0; i < raw.length; i++) {
     const trimmed = raw[i].trim();
@@ -29,8 +30,7 @@ function parseLines(text: string): ParsedLine[] {
       continue;
     }
 
-    // Role / company line with date range — checked FIRST before contact to avoid misclassifying
-    // lines like "Senior Engineer | Walmart | Jan 2024 – Present" as contact lines
+    // Role / company headline — checked FIRST to avoid misclassifying as contact
     const hasDate =
       /\b\d{4}\b/.test(trimmed) &&
       (trimmed.includes("–") || trimmed.includes("—") ||
@@ -44,15 +44,26 @@ function parseLines(text: string): ParsedLine[] {
       if (dateMatch) {
         const datePart = dateMatch[0];
         const rolePart = trimmed.replace(datePart, "").replace(/[|·,\s]+$/, "").trim();
-        result.push({ type: "role", text: trimmed, rolePart, datePart });
+
+        // If this line is just a date (no role text), attach it to the last role entry
+        if (!rolePart) {
+          const lastRole = [...result].reverse().find((l) => l.type === "role");
+          if (lastRole && !lastRole.datePart) {
+            lastRole.datePart = datePart;
+            continue;
+          }
+        }
+
+        result.push({ type: "role", text: trimmed, rolePart: rolePart || trimmed, datePart });
       } else {
         result.push({ type: "role", text: trimmed });
       }
       continue;
     }
 
-    // Contact line
+    // Contact line — only before the first section header
     if (
+      !pastFirstHeader &&
       !trimmed.startsWith("•") &&
       !trimmed.startsWith("-") &&
       (trimmed.includes("@") || / \| /.test(trimmed) || /\(\d{3}\)/.test(trimmed) ||
@@ -68,6 +79,7 @@ function parseLines(text: string): ParsedLine[] {
       trimmed.length >= 4 &&
       !/\d/.test(trimmed);
     if (isHeader) {
+      pastFirstHeader = true;
       result.push({ type: "header", text: trimmed });
       continue;
     }
@@ -78,15 +90,26 @@ function parseLines(text: string): ParsedLine[] {
       continue;
     }
 
-    // Subtitle — short line immediately after a role/date line
-    const prevText = raw[i - 1]?.trim() ?? "";
+    // Subtitle — short line after a role/date line (check previous non-empty line)
+    let prevNonEmpty = "";
+    for (let j = i - 1; j >= 0; j--) {
+      const p = raw[j].trim();
+      if (p) { prevNonEmpty = p; break; }
+    }
     const isSubtitle =
+      pastFirstHeader &&
       trimmed.length < 80 &&
       !/^[A-Z\s]{4,}$/.test(trimmed) &&
-      /\b\d{4}\b/.test(prevText);
+      /\b\d{4}\b/.test(prevNonEmpty);
 
     if (isSubtitle) {
       result.push({ type: "subtitle", text: trimmed });
+      continue;
+    }
+
+    // After first header, short lines that look like "Role | Company" are role headlines
+    if (pastFirstHeader && / \| /.test(trimmed) && !trimmed.startsWith("•")) {
+      result.push({ type: "role", text: trimmed, rolePart: trimmed });
       continue;
     }
 
