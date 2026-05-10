@@ -28,6 +28,7 @@ CONSTRAINTS
 - Never invent a job, company, degree, or certification not in the original resume
 - Keep actual job titles, company names, and dates exactly as-is
 - Plain text only — no tables, columns, or special characters
+- Do NOT add a headline, tagline, target-role line, or pipe-separated list of job titles under the candidate's name. The line directly below the name must be the contact info only — nothing else.
 
 OUTPUT — return ONLY valid JSON, no markdown fences:
 {"tailored":"complete tailored resume as plain text","atsScore":<0-100>,"jobTitle":"extracted job title from JD","company":"extracted company name from JD","matchedKeywords":["..."],"missingKeywords":["..."],"improvements":["..."]}`;

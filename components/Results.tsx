@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { downloadResumePdf } from "@/lib/generatePdf";
+import { downloadResumePdf, downloadCoverLetterPdf } from "@/lib/generatePdf";
 import ResumePreview from "./ResumePreview";
 
 export interface TailorResult {
@@ -23,6 +23,13 @@ interface Props {
 export default function Results({ result, onBack, onHome }: Props) {
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  // Cover letter state
+  const [coverLetter, setCoverLetter] = useState("");
+  const [generatingCL, setGeneratingCL] = useState(false);
+  const [clReady, setClReady] = useState(false);
+  const [clError, setClError] = useState("");
+  const [downloadingCL, setDownloadingCL] = useState(false);
 
   // Email drafting state
   const [recruiterEmail, setRecruiterEmail] = useState("");
@@ -74,6 +81,42 @@ export default function Results({ result, onBack, onHome }: Props) {
   const handleOpenMailto = () => {
     const mailto = `mailto:${recruiterEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
     window.open(mailto, "_blank");
+  };
+
+  const handleGenerateCoverLetter = async () => {
+    setGeneratingCL(true);
+    setClError("");
+    setClReady(false);
+    try {
+      const res = await fetch("/api/draft-cover-letter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobTitle: result.jobTitle ?? "the role",
+          company: result.company ?? "the company",
+          tailoredResume: result.tailored,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const { coverLetter: cl } = await res.json();
+      setCoverLetter(cl);
+      setClReady(true);
+    } catch {
+      setClError("Failed to generate cover letter. Please try again.");
+    } finally {
+      setGeneratingCL(false);
+    }
+  };
+
+  const handleDownloadCoverLetterPdf = async () => {
+    setDownloadingCL(true);
+    await downloadCoverLetterPdf(
+      coverLetter,
+      result.jobTitle ?? "Role",
+      result.company ?? "Company",
+      `cover-letter-${(result.company ?? "company").toLowerCase().replace(/\s+/g, "-")}.pdf`
+    );
+    setDownloadingCL(false);
   };
 
   const score = result.atsScore ?? 0;
@@ -285,6 +328,64 @@ export default function Results({ result, onBack, onHome }: Props) {
               </>
             )}
           </div>
+          {/* ── Cover Letter ── */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded bg-rose-50 flex items-center justify-center">
+                <svg className="w-3 h-3 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h3 className="text-xs font-semibold text-gray-800">Cover Letter</h3>
+            </div>
+
+            {!clReady ? (
+              <>
+                <p className="text-xs text-gray-400">Generate a tailored cover letter based on this role and your resume.</p>
+                {clError && <p className="text-xs text-red-500">{clError}</p>}
+                <button
+                  onClick={handleGenerateCoverLetter}
+                  disabled={generatingCL}
+                  className="flex items-center justify-center gap-1.5 py-2 bg-rose-600 text-white text-xs font-semibold rounded-xl hover:bg-rose-700 disabled:opacity-60 transition-colors"
+                >
+                  {generatingCL ? (
+                    <><div className="w-3 h-3 rounded-full border-2 border-white/30 border-t-white animate-spin" />Generating...</>
+                  ) : (
+                    <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>Generate Cover Letter</>
+                  )}
+                </button>
+              </>
+            ) : (
+              <>
+                <textarea
+                  value={coverLetter}
+                  onChange={(e) => setCoverLetter(e.target.value)}
+                  rows={12}
+                  className="px-3 py-2 text-xs border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-rose-400 leading-relaxed"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setClReady(false); setCoverLetter(""); }}
+                    className="flex-1 py-2 border border-gray-200 text-xs font-medium text-gray-600 rounded-xl hover:bg-gray-50 transition-colors"
+                  >
+                    Re-generate
+                  </button>
+                  <button
+                    onClick={handleDownloadCoverLetterPdf}
+                    disabled={downloadingCL}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-rose-600 text-white text-xs font-semibold rounded-xl hover:bg-rose-700 disabled:opacity-60 transition-colors"
+                  >
+                    {downloadingCL ? (
+                      <><div className="w-3 h-3 rounded-full border-2 border-white/30 border-t-white animate-spin" />Generating PDF...</>
+                    ) : (
+                      <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>Download PDF</>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
         </div>
       </div>
     </div>

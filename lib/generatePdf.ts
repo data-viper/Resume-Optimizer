@@ -162,3 +162,53 @@ export async function downloadResumePdf(text: string, filename = "tailored-resum
 
   doc.save(filename);
 }
+
+export async function downloadCoverLetterPdf(text: string, jobTitle: string, company: string, filename = "cover-letter.pdf") {
+  const { jsPDF } = await import("jspdf");
+
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const mX = 25;
+  const mY = 25;
+  const pageW = 210 - mX * 2;
+  const pageH = 297;
+  let y = mY;
+
+  const space = (need: number) => { if (y + need > pageH - mY) { doc.addPage(); y = mY; } };
+
+  // Header: job title + company
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(20, 20, 20);
+  doc.text(`${jobTitle} — ${company}`, mX, y);
+  y += 6;
+
+  // Thin divider
+  doc.setDrawColor(20, 20, 20);
+  doc.setLineWidth(0.4);
+  doc.line(mX, y, mX + pageW, y);
+  y += 8;
+
+  // Date
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  doc.text(new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }), mX, y);
+  y += 10;
+
+  // Body paragraphs
+  doc.setTextColor(20, 20, 20);
+  const paragraphs = text.split(/\n\n+/);
+
+  for (const para of paragraphs) {
+    const trimmed = para.trim();
+    if (!trimmed) continue;
+    const wrapped = doc.splitTextToSize(trimmed, pageW);
+    space(wrapped.length * 5.5 + 6);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10.5);
+    doc.text(wrapped, mX, y);
+    y += wrapped.length * 5.5 + 5;
+  }
+
+  doc.save(filename);
+}
