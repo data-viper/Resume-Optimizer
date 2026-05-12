@@ -39,6 +39,14 @@ export default function Results({ result, onBack, onHome }: Props) {
   const [emailError, setEmailError] = useState("");
   const [emailReady, setEmailReady] = useState(false);
 
+  // Application question state
+  const [appQuestion, setAppQuestion] = useState("");
+  const [appAnswer, setAppAnswer] = useState("");
+  const [answeringQ, setAnsweringQ] = useState(false);
+  const [qReady, setQReady] = useState(false);
+  const [qError, setQError] = useState("");
+  const [answerCopied, setAnswerCopied] = useState(false);
+
   const handleCopy = async () => {
     await navigator.clipboard.writeText(result.tailored);
     setCopied(true);
@@ -106,6 +114,46 @@ export default function Results({ result, onBack, onHome }: Props) {
     } finally {
       setGeneratingCL(false);
     }
+  };
+
+  const handleAnswerQuestion = async () => {
+    if (!appQuestion.trim()) return;
+    setAnsweringQ(true);
+    setQError("");
+    setQReady(false);
+    try {
+      const res = await fetch("/api/answer-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: appQuestion,
+          jobTitle: result.jobTitle ?? "the role",
+          company: result.company ?? "the company",
+          tailoredResume: result.tailored,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const { answer } = await res.json();
+      setAppAnswer(answer);
+      setQReady(true);
+    } catch {
+      setQError("Failed to generate answer. Please try again.");
+    } finally {
+      setAnsweringQ(false);
+    }
+  };
+
+  const handleCopyAnswer = async () => {
+    await navigator.clipboard.writeText(appAnswer);
+    setAnswerCopied(true);
+    setTimeout(() => setAnswerCopied(false), 2000);
+  };
+
+  const handleAskAnother = () => {
+    setAppQuestion("");
+    setAppAnswer("");
+    setQReady(false);
+    setQError("");
   };
 
   const handleDownloadCoverLetterPdf = async () => {
@@ -379,6 +427,71 @@ export default function Results({ result, onBack, onHome }: Props) {
                       <><div className="w-3 h-3 rounded-full border-2 border-white/30 border-t-white animate-spin" />Generating PDF...</>
                     ) : (
                       <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>Download PDF</>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* ── Application Question ── */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded bg-amber-50 flex items-center justify-center">
+                <svg className="w-3 h-3 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xs font-semibold text-gray-800">Application Question</h3>
+            </div>
+
+            {!qReady ? (
+              <>
+                <p className="text-xs text-gray-400">Paste a question from the application form — get a short tailored answer.</p>
+                <textarea
+                  value={appQuestion}
+                  onChange={(e) => setAppQuestion(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Why do you want to work at this company?"
+                  className="px-3 py-2 text-xs border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 leading-relaxed"
+                />
+                {qError && <p className="text-xs text-red-500">{qError}</p>}
+                <button
+                  onClick={handleAnswerQuestion}
+                  disabled={answeringQ || !appQuestion.trim()}
+                  className="flex items-center justify-center gap-1.5 py-2 bg-amber-600 text-white text-xs font-semibold rounded-xl hover:bg-amber-700 disabled:opacity-60 transition-colors"
+                >
+                  {answeringQ ? (
+                    <><div className="w-3 h-3 rounded-full border-2 border-white/30 border-t-white animate-spin" />Generating...</>
+                  ) : (
+                    <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>Generate Answer</>
+                  )}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="text-xs text-gray-500 italic px-1 leading-relaxed">{appQuestion}</div>
+                <textarea
+                  value={appAnswer}
+                  onChange={(e) => setAppAnswer(e.target.value)}
+                  rows={6}
+                  className="px-3 py-2 text-xs border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 leading-relaxed"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleAskAnother}
+                    className="flex-1 py-2 border border-gray-200 text-xs font-medium text-gray-600 rounded-xl hover:bg-gray-50 transition-colors"
+                  >
+                    Ask Another
+                  </button>
+                  <button
+                    onClick={handleCopyAnswer}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-amber-600 text-white text-xs font-semibold rounded-xl hover:bg-amber-700 transition-colors"
+                  >
+                    {answerCopied ? (
+                      <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>Copied</>
+                    ) : (
+                      <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>Copy</>
                     )}
                   </button>
                 </div>
