@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { downloadResumePdf, downloadCoverLetterPdf } from "@/lib/generatePdf";
 import ResumePreview from "./ResumePreview";
 
@@ -16,13 +16,60 @@ export interface TailorResult {
 
 interface Props {
   result: TailorResult;
+  activeResumeName?: string | null;
+  isLoggedIn?: boolean;
   onBack: () => void;
   onHome: () => void;
 }
 
-export default function Results({ result, onBack, onHome }: Props) {
+export default function Results({ result, activeResumeName, isLoggedIn, onBack, onHome }: Props) {
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  // Applied state
+  const [applied, setApplied] = useState(false);
+  const [marking, setMarking] = useState(false);
+  const [todayCount, setTodayCount] = useState<number | null>(null);
+  const [appliedError, setAppliedError] = useState("");
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    fetch("/api/profile/applications")
+      .then((r) => (r.ok ? r.json() : { applications: [] }))
+      .then((data: { applications?: { appliedAt: string }[] }) => {
+        const todayStr = new Date().toDateString();
+        const count = (data.applications ?? []).filter(
+          (a) => new Date(a.appliedAt).toDateString() === todayStr
+        ).length;
+        setTodayCount(count);
+      })
+      .catch(() => setTodayCount(0));
+  }, [isLoggedIn]);
+
+  const handleMarkApplied = async () => {
+    if (applied || marking) return;
+    setMarking(true);
+    setAppliedError("");
+    try {
+      const res = await fetch("/api/profile/applications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobTitle: result.jobTitle ?? "Untitled role",
+          company: result.company ?? "Unknown company",
+          atsScore: result.atsScore ?? 0,
+          resumeName: activeResumeName ?? null,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setApplied(true);
+      setTodayCount((c) => (c ?? 0) + 1);
+    } catch {
+      setAppliedError("Failed to log. Try again.");
+    } finally {
+      setMarking(false);
+    }
+  };
 
   // Cover letter state
   const [coverLetter, setCoverLetter] = useState("");
@@ -199,6 +246,20 @@ export default function Results({ result, onBack, onHome }: Props) {
             <span className="text-lg font-bold">{score}</span>
             <span className="text-xs font-medium opacity-75">/ 100 · {scoreLabel}</span>
           </div>
+          {isLoggedIn && todayCount !== null && (
+            <>
+              <div className="h-4 w-px bg-gray-200" />
+              <div
+                className="flex items-center gap-2"
+                title="Applications you've marked as applied today"
+              >
+                <div className="w-9 h-9 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+                  <span className="text-sm font-bold text-indigo-700">{todayCount}</span>
+                </div>
+                <span className="text-xs text-gray-500 font-medium">applied today</span>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -221,8 +282,32 @@ export default function Results({ result, onBack, onHome }: Props) {
               <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>Download PDF</>
             )}
           </button>
+
+          {isLoggedIn && (
+            <button
+              onClick={handleMarkApplied}
+              disabled={applied || marking}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
+                applied
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 cursor-default"
+                  : "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 disabled:opacity-60"
+              }`}
+              title={applied ? "Logged in your tracker" : "Mark as applied to log this in your tracker"}
+            >
+              {marking ? (
+                <><div className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />Logging...</>
+              ) : applied ? (
+                <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>Applied</>
+              ) : (
+                <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>Mark as Applied</>
+              )}
+            </button>
+          )}
         </div>
       </div>
+      {appliedError && (
+        <p className="text-xs text-red-600 -mt-3 px-5">{appliedError}</p>
+      )}
 
       {/* Main results */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1">

@@ -110,20 +110,6 @@ export default function Workspace() {
       const parsed = JSON.parse(cleaned);
       if (parsed.error) throw new Error(parsed.error);
 
-      // Auto-log the job application
-      if (isLoggedIn && parsed.jobTitle && parsed.company) {
-        fetch("/api/profile/applications", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            jobTitle: parsed.jobTitle,
-            company: parsed.company,
-            atsScore: parsed.atsScore,
-            resumeName: activeResume?.name ?? null,
-          }),
-        }).catch(() => {});
-      }
-
       setResult(parsed);
       setStep("results");
     } catch (err) {
@@ -218,6 +204,8 @@ export default function Workspace() {
             </div>
             <Results
               result={result}
+              activeResumeName={activeResume?.name ?? null}
+              isLoggedIn={isLoggedIn}
               onBack={() => setStep("input")}
               onHome={() => { setStep("input"); setResult(null); setJdText(""); }}
             />

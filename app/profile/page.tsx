@@ -312,7 +312,7 @@ export default function ProfilePage() {
           <>
             <div>
               <h1 className="text-xl font-bold text-gray-900">Application Tracker</h1>
-              <p className="text-sm text-gray-500 mt-0.5">Automatically logged every time you optimize a resume.</p>
+              <p className="text-sm text-gray-500 mt-0.5">Logged when you click <span className="font-semibold text-emerald-700">Mark as Applied</span> on the results page.</p>
             </div>
 
             {loadingApps ? (
@@ -331,6 +331,47 @@ export default function ProfilePage() {
                 <p className="text-xs text-gray-400">Optimize a resume to automatically log your first application.</p>
               </div>
             ) : (
+              <>
+                {/* Per-day summary */}
+                {(() => {
+                  const byDay = new Map<string, number>();
+                  for (const app of applications) {
+                    const key = new Date(app.appliedAt).toDateString();
+                    byDay.set(key, (byDay.get(key) ?? 0) + 1);
+                  }
+                  const today = new Date().toDateString();
+                  const days = Array.from(byDay.entries());
+                  const max = Math.max(...days.map(([, c]) => c), 1);
+                  return (
+                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-sm font-semibold text-gray-900">Applications per day</h2>
+                        <span className="text-xs text-gray-400">{days.length} day{days.length !== 1 ? "s" : ""} active</span>
+                      </div>
+                      <div className="flex flex-col gap-1.5 max-h-56 overflow-y-auto">
+                        {days.map(([day, count]) => {
+                          const isToday = day === today;
+                          const date = new Date(day);
+                          return (
+                            <div key={day} className="grid grid-cols-[120px_1fr_32px] items-center gap-3">
+                              <span className={`text-xs ${isToday ? "font-semibold text-indigo-700" : "text-gray-600"}`}>
+                                {isToday ? "Today" : date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                              </span>
+                              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${isToday ? "bg-indigo-500" : "bg-indigo-300"}`}
+                                  style={{ width: `${(count / max) * 100}%` }}
+                                />
+                              </div>
+                              <span className={`text-xs font-semibold text-right ${isToday ? "text-indigo-700" : "text-gray-700"}`}>{count}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
               <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                 {/* Edit inline row */}
                 {editingApp && (
@@ -401,6 +442,7 @@ export default function ProfilePage() {
                   <p className="text-xs text-gray-400">{applications.length} application{applications.length !== 1 ? "s" : ""} tracked</p>
                 </div>
               </div>
+              </>
             )}
           </>
         )}
