@@ -18,7 +18,23 @@ export async function downloadResumePdf(text: string, filename = "tailored-resum
     if (y + need > pageH - mY) newPage();
   };
 
-  const lines = text.split("\n");
+  const isDateOnly = (s: string) =>
+    /^(?:\w+ )?\d{4}\s*[–—\-]+\s*(?:(?:\w+ )?\d{4}|Present)$/i.test(s.trim());
+
+  const rawLines = text.split("\n");
+  const lines: string[] = [];
+  for (const line of rawLines) {
+    if (isDateOnly(line)) {
+      let prev = lines.length - 1;
+      while (prev >= 0 && !lines[prev].trim()) prev--;
+      if (prev >= 0 && !isDateOnly(lines[prev])) {
+        lines[prev] = `${lines[prev].trim()} | ${line.trim()}`;
+        continue;
+      }
+    }
+    lines.push(line);
+  }
+
   let nameWritten = false;
   let prevWasEmpty = false;
 
@@ -58,7 +74,6 @@ export async function downloadResumePdf(text: string, filename = "tailored-resum
 
     if (hasDate) {
       space(7);
-      doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(0, 0, 0);
       const dateMatch = trimmed.match(
@@ -67,11 +82,15 @@ export async function downloadResumePdf(text: string, filename = "tailored-resum
       if (dateMatch) {
         const datePart = dateMatch[0];
         const rolePart = trimmed.replace(datePart, "").replace(/[|·,\s]+$/, "").trim();
-        if (rolePart) doc.text(rolePart, mX, y);
-        doc.setFontSize(11);
+        if (rolePart) {
+          doc.setFont("helvetica", "bold");
+          doc.text(rolePart, mX, y);
+        }
+        doc.setFont("helvetica", "normal");
         const dW = doc.getTextWidth(datePart);
         doc.text(datePart, mX + pageW - dW, y);
       } else {
+        doc.setFont("helvetica", "bold");
         const wrapped = doc.splitTextToSize(trimmed, pageW);
         doc.text(wrapped, mX, y);
       }

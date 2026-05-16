@@ -1,10 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { downloadResumePdf } from "@/lib/generatePdf";
 
 interface Experience {
   company: string;
   role: string;
+  startDate: string;
+  endDate: string;
+}
+
+interface Education {
+  school: string;
+  degree: string;
+  field: string;
   startDate: string;
   endDate: string;
 }
@@ -17,10 +26,12 @@ interface BuilderState {
   linkedin: string;
   targetRole: string;
   experiences: Experience[];
+  education: Education[];
   notes: string;
 }
 
 const BLANK_EXP: Experience = { company: "", role: "", startDate: "", endDate: "" };
+const BLANK_EDU: Education = { school: "", degree: "", field: "", startDate: "", endDate: "" };
 
 const BLANK_STATE: BuilderState = {
   fullName: "",
@@ -30,21 +41,20 @@ const BLANK_STATE: BuilderState = {
   linkedin: "",
   targetRole: "",
   experiences: [{ ...BLANK_EXP }],
+  education: [{ ...BLANK_EDU }],
   notes: "",
 };
 
 interface Props {
   defaultEmail?: string;
   onCancel: () => void;
-  onSaved: () => void;
 }
 
-export default function ResumeBuilder({ defaultEmail, onCancel, onSaved }: Props) {
+export default function ResumeBuilder({ defaultEmail, onCancel }: Props) {
   const [form, setForm] = useState<BuilderState>({ ...BLANK_STATE, email: defaultEmail ?? "" });
-  const [resumeName, setResumeName] = useState("");
   const [generated, setGenerated] = useState("");
   const [generating, setGenerating] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
   const [step, setStep] = useState<"form" | "preview">("form");
 
@@ -59,6 +69,18 @@ export default function ResumeBuilder({ defaultEmail, onCancel, onSaved }: Props
 
   const removeExp = (i: number) =>
     setForm((f) => ({ ...f, experiences: f.experiences.filter((_, idx) => idx !== i) }));
+
+  const updateEdu = (i: number, patch: Partial<Education>) => {
+    setForm((f) => ({
+      ...f,
+      education: f.education.map((e, idx) => (idx === i ? { ...e, ...patch } : e)),
+    }));
+  };
+
+  const addEdu = () => setForm((f) => ({ ...f, education: [...f.education, { ...BLANK_EDU }] }));
+
+  const removeEdu = (i: number) =>
+    setForm((f) => ({ ...f, education: f.education.filter((_, idx) => idx !== i) }));
 
   const handleGenerate = async () => {
     setError("");
@@ -102,21 +124,21 @@ export default function ResumeBuilder({ defaultEmail, onCancel, onSaved }: Props
     }
   };
 
-  const handleSave = async () => {
+  const handleDownload = async () => {
     setError("");
-    const name = resumeName.trim() || `${form.targetRole} Resume`;
     if (!generated.trim()) { setError("Generated resume is empty."); return; }
 
-    setSaving(true);
-    const res = await fetch("/api/profile/resumes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, content: generated }),
-    });
-    setSaving(false);
-
-    if (res.ok) onSaved();
-    else setError((await res.json().catch(() => ({}))).error ?? "Failed to save resume.");
+    setDownloading(true);
+    try {
+      const safeName = (form.fullName || "resume").trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+      const filename = `${safeName || "resume"}-resume.pdf`;
+      await downloadResumePdf(generated, filename);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to generate PDF. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   if (step === "preview") {
@@ -131,17 +153,6 @@ export default function ResumeBuilder({ defaultEmail, onCancel, onSaved }: Props
               ← Back to inputs
             </button>
           )}
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-700">Resume Name</label>
-          <input
-            type="text"
-            value={resumeName}
-            onChange={(e) => setResumeName(e.target.value)}
-            placeholder={`${form.targetRole || "My"} Resume`}
-            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
         </div>
 
         <div className="flex flex-col gap-1">
@@ -174,17 +185,26 @@ export default function ResumeBuilder({ defaultEmail, onCancel, onSaved }: Props
           </button>
           <button
             onClick={handleGenerate}
-            disabled={generating || saving}
+            disabled={generating || downloading}
             className="flex-1 py-2 border border-indigo-200 text-sm font-semibold text-indigo-600 rounded-xl hover:bg-indigo-50 disabled:opacity-60 transition-colors"
           >
             Regenerate
           </button>
           <button
-            onClick={handleSave}
-            disabled={generating || saving || !generated.trim()}
-            className="flex-1 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-60 transition-colors"
+            onClick={handleDownload}
+            disabled={generating || downloading || !generated.trim()}
+            className="flex-1 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-60 transition-colors flex items-center justify-center gap-1.5"
           >
-            {saving ? "Saving..." : "Generate Resume"}
+            {downloading ? (
+              "Preparing..."
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download PDF
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -255,6 +275,45 @@ export default function ResumeBuilder({ defaultEmail, onCancel, onSaved }: Props
                 <Field label="Role" value={exp.role} onChange={(v) => updateExp(i, { role: v })} placeholder="Software Engineer" small />
                 <Field label="Start date" value={exp.startDate} onChange={(v) => updateExp(i, { startDate: v })} placeholder="Jan 2022" small />
                 <Field label="End date" value={exp.endDate} onChange={(v) => updateExp(i, { endDate: v })} placeholder="Present" small />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Education */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Education</h3>
+          <button
+            onClick={addEdu}
+            type="button"
+            className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
+          >
+            + Add another
+          </button>
+        </div>
+        <div className="flex flex-col gap-3">
+          {form.education.map((edu, i) => (
+            <div key={i} className="border border-gray-200 rounded-xl p-3 flex flex-col gap-2 bg-gray-50">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-gray-600">Education {i + 1}</span>
+                {form.education.length > 1 && (
+                  <button
+                    onClick={() => removeEdu(i)}
+                    type="button"
+                    className="text-xs text-gray-400 hover:text-red-500"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Field label="School / University" value={edu.school} onChange={(v) => updateEdu(i, { school: v })} placeholder="Stanford University" small />
+                <Field label="Degree" value={edu.degree} onChange={(v) => updateEdu(i, { degree: v })} placeholder="B.S." small />
+                <Field label="Field of study" value={edu.field} onChange={(v) => updateEdu(i, { field: v })} placeholder="Computer Science" small className="sm:col-span-2" />
+                <Field label="Start date" value={edu.startDate} onChange={(v) => updateEdu(i, { startDate: v })} placeholder="Sep 2018" small />
+                <Field label="End date" value={edu.endDate} onChange={(v) => updateEdu(i, { endDate: v })} placeholder="May 2022" small />
               </div>
             </div>
           ))}

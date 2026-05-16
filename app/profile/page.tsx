@@ -208,7 +208,6 @@ export default function ProfilePage() {
               <ResumeBuilder
                 defaultEmail={session?.user?.email ?? ""}
                 onCancel={() => setBuilding(false)}
-                onSaved={() => { setBuilding(false); fetchResumes(); }}
               />
             )}
 
