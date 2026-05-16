@@ -4,6 +4,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { Resume } from "@/components/ResumeSelector";
+import ResumeBuilder from "@/components/ResumeBuilder";
 
 type Mode = "upload" | "paste";
 type Tab = "resumes" | "tracker";
@@ -37,6 +38,7 @@ export default function ProfilePage() {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [loadingResumes, setLoadingResumes] = useState(true);
   const [editing, setEditing] = useState<EditingState | null>(null);
+  const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -177,21 +179,38 @@ export default function ProfilePage() {
         {/* ── RESUMES TAB ── */}
         {activeTab === "resumes" && (
           <>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div>
                 <h1 className="text-xl font-bold text-gray-900">My Resumes</h1>
                 <p className="text-sm text-gray-500 mt-0.5">Save multiple resumes and switch between them on the optimizer.</p>
               </div>
-              {!editing && (
-                <button onClick={() => setEditing({ ...BLANK })}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add Resume
-                </button>
+              {!editing && !building && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => setBuilding(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 border border-indigo-200 text-indigo-700 bg-white text-sm font-semibold rounded-xl hover:bg-indigo-50 transition-colors">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                    Build Resume
+                  </button>
+                  <button onClick={() => setEditing({ ...BLANK })}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Resume
+                  </button>
+                </div>
               )}
             </div>
+
+            {building && (
+              <ResumeBuilder
+                defaultEmail={session?.user?.email ?? ""}
+                onCancel={() => setBuilding(false)}
+                onSaved={() => { setBuilding(false); fetchResumes(); }}
+              />
+            )}
 
             {editing && (
               <div className="bg-white rounded-2xl border border-indigo-200 shadow-sm p-5 flex flex-col gap-4">
@@ -247,7 +266,7 @@ export default function ProfilePage() {
               <div className="flex flex-col gap-3">
                 {[1,2].map(i => <div key={i} className="h-20 bg-white rounded-2xl border border-gray-200 animate-pulse" />)}
               </div>
-            ) : resumes.length === 0 && !editing ? (
+            ) : resumes.length === 0 && !editing && !building ? (
               <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-10 flex flex-col items-center gap-3 text-center">
                 <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center">
                   <svg className="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
